@@ -14,6 +14,7 @@ st.set_page_config(
 )
 
 
+@st.cache_data(show_spinner="Embedding file...")
 def embed_file(file):
     file_content = file.read()
     file_path = f"./.cache/files/{file.name}"
@@ -28,7 +29,7 @@ def embed_file(file):
         chunk_overlap=100,
     )
 
-    loader = UnstructuredFileLoader(f"./.cache/files/{file.name}")
+    loader = UnstructuredFileLoader(file_path)
     docs = loader.load_and_split(text_splitter=splitter)
     embeddings = OpenAIEmbeddings()
 
@@ -39,6 +40,18 @@ def embed_file(file):
     return retriver
 
 
+def send_message(msg, role, save=True):
+    with st.chat_message(role):
+        st.markdown(msg)
+    if save:
+        st.session_state["messages"].append({"msg": msg, "role": role})
+
+
+def paint_history():
+    for msg in st.session_state["messages"]:
+        send_message(msg["msg"], msg["role"], False)
+
+
 st.title("Document GPT")
 
 st.markdown(
@@ -46,12 +59,25 @@ st.markdown(
 ### Welcome!
             
 Use this chatbot to ask questions to an AI about your files!
+
+Upload your file on the sidebar.
 """
 )
 
-
-file = st.file_uploader("Upload any file do you want!", type=["pdf", "txt", "docx"])
+with st.sidebar:
+    file = st.file_uploader(
+        "Upload any file do you want!",
+        type=["pdf", "txt", "docx"],
+    )
 
 if file:
     retriever = embed_file(file)
-    s = retriever.invoke("winston")
+    send_message("I'm ready! Ask away!", "ai", False)
+    paint_history()
+
+    message = st.chat_input("Ask anything about your file")
+
+    if message:
+        send_message(message, "human")
+else:
+    st.session_state["messages"] = []
