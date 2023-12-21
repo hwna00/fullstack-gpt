@@ -1,3 +1,6 @@
+from typing import Any, Dict, List, Optional, Union
+from uuid import UUID
+from langchain.schema.output import ChatGenerationChunk, GenerationChunk
 import streamlit as st
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
@@ -8,6 +11,7 @@ from langchain.vectorstores.faiss import FAISS
 from langchain.storage import LocalFileStore
 from langchain.schema.runnable import RunnablePassthrough, RunnableLambda
 from langchain.chat_models import ChatOpenAI
+from langchain.callbacks.base import BaseCallbackHandler
 
 
 st.set_page_config(
@@ -15,7 +19,32 @@ st.set_page_config(
     page_icon="📜",
 )
 
-llm = ChatOpenAI(temperature=0.1)
+
+def save_message(msg, role):
+    st.session_state["messages"].append({"msg": msg, "role": role})
+
+
+class ChatCallbackHandler(BaseCallbackHandler):
+    message = ""
+
+    def on_llm_start(self, *args, **kwargs):
+        self.message_box = st.empty()  # 추후에 무엇인가를 담을 수 있는 빈 위젯을 제공
+
+    def on_llm_end(self, *args, **kwargs):
+        save_message(self.message, "ai")
+
+    def on_llm_new_token(self, token, *args, **kwargs):
+        self.message += token
+        self.message_box.markdown(self.message)
+
+
+llm = ChatOpenAI(
+    temperature=0.1,
+    streaming=True,
+    callbacks=[
+        ChatCallbackHandler(),
+    ],
+)
 
 
 @st.cache_data(show_spinner="Embedding file...")
@@ -48,7 +77,7 @@ def send_message(msg, role, save=True):
     with st.chat_message(role):
         st.markdown(msg)
     if save:
-        st.session_state["messages"].append({"msg": msg, "role": role})
+        save_message(msg, role)
 
 
 def paint_history():
@@ -112,8 +141,8 @@ if file:
             | llm
         )
 
-        response = chain.invoke(message)
-        send_message(response.content, "ai")
+        with st.chat_message("ai"):
+            response = chain.invoke(message)
 
 
 else:
