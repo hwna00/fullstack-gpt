@@ -1,16 +1,12 @@
-from typing import Any, Dict, List, Optional, Union
-from uuid import UUID
-from langchain.schema.output import ChatGenerationChunk, GenerationChunk
 import streamlit as st
-from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from langchain.document_loaders import UnstructuredFileLoader
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings, CacheBackedEmbeddings
+from langchain.embeddings import CacheBackedEmbeddings, OllamaEmbeddings
 from langchain.vectorstores.faiss import FAISS
 from langchain.storage import LocalFileStore
 from langchain.schema.runnable import RunnablePassthrough, RunnableLambda
-from langchain.chat_models import ChatOpenAI
+from langchain.chat_models import ChatOllama
 from langchain.callbacks.base import BaseCallbackHandler
 
 
@@ -38,7 +34,8 @@ class ChatCallbackHandler(BaseCallbackHandler):
         self.message_box.markdown(self.message)
 
 
-llm = ChatOpenAI(
+llm = ChatOllama(
+    model="mistral:latest",
     temperature=0.1,
     streaming=True,
     callbacks=[
@@ -64,7 +61,7 @@ def embed_file(file):
 
     loader = UnstructuredFileLoader(file_path)
     docs = loader.load_and_split(text_splitter=splitter)
-    embeddings = OpenAIEmbeddings()
+    embeddings = OllamaEmbeddings(model="mistral:latest")
 
     cache_embeddings = CacheBackedEmbeddings.from_bytes_store(embeddings, cache_dir)
     vectorstore = FAISS.from_documents(docs, cache_embeddings)
@@ -89,22 +86,17 @@ def format_docs(docs):
     return "\n\n".join(docuement.page_content for docuement in docs)
 
 
-prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            """
-            Answer the question using ONLY the following context.
-            If you don't know the answer just say you don't know. DON'T make anythin up.
-            ---
-            Context: {context}
-            """,
-        ),
-        ("human", "{question}"),
-    ]
+prompt = ChatPromptTemplate.from_template(
+    """
+    Answer the question using ONLY the following context and not your training data.
+    If you don't know the answer just say you don't know. DON'T make anythin up.
+    ---
+    Context: {context}
+    Question: {question}
+    """
 )
 
-st.title("Document GPT")
+st.title("Private GPT")
 
 st.markdown(
     """
