@@ -264,7 +264,6 @@ else:
 
     with st.form("questions_form"):
         for question in response["questions"]:
-            st.write(question["question"])
             options = [answer["answer"] for answer in question["answers"]]
             selected_answer = st.radio("Select an option", options, index=None)
 
