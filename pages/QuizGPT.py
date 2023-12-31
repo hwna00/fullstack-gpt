@@ -31,7 +31,7 @@ llm = ChatOpenAI(
 
 
 def format_docs(docs):
-    return "\n\n".join(docuement.page_content for docuement in docs)
+    return "\n\n".join(document.page_content for document in docs)
 
 
 questions_prompt = ChatPromptTemplate.from_messages(
@@ -256,7 +256,7 @@ if not docs:
         I will make a quiz from Wikipedia articles or
         files you upload to test your knowledge and help you study.
 
-        Get started by uploading a file or searching on Wikipeida in the sidebar.
+        Get started by uploading a file or searching on Wikipedia in the sidebar.
         """
     )
 else:
@@ -265,13 +265,19 @@ else:
     with st.form("questions_form"):
         for question in response["questions"]:
             st.write(question["question"])
-            value = st.radio(
-                "Select an option",
-                [answer["answer"] for answer in question["answers"]],
-                index=None,
+            options = [answer["answer"] for answer in question["answers"]]
+            selected_answer = st.radio("Select an option", options, index=None)
+
+            correct_answer = next(
+                (answer for answer in question["answers"] if answer["correct"]), None
             )
-            if {"answer": value, "correct": True} in question["answers"]:
+
+            if (
+                selected_answer
+                and correct_answer
+                and selected_answer == correct_answer["answer"]
+            ):
                 st.success("Correct!")
-            elif value is not None:
+            elif selected_answer:
                 st.error("Wrong!")
         button = st.form_submit_button()

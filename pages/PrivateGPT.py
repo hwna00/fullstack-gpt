@@ -65,9 +65,9 @@ def embed_file(file):
 
     cache_embeddings = CacheBackedEmbeddings.from_bytes_store(embeddings, cache_dir)
     vectorstore = FAISS.from_documents(docs, cache_embeddings)
-    retriver = vectorstore.as_retriever()
+    retriever = vectorstore.as_retriever()
 
-    return retriver
+    return retriever
 
 
 def send_message(msg, role, save=True):
@@ -83,13 +83,13 @@ def paint_history():
 
 
 def format_docs(docs):
-    return "\n\n".join(docuement.page_content for docuement in docs)
+    return "\n\n".join(document.page_content for document in docs)
 
 
 prompt = ChatPromptTemplate.from_template(
     """
     Answer the question using ONLY the following context and not your training data.
-    If you don't know the answer just say you don't know. DON'T make anythin up.
+    If you don't know the answer just say you don't know. DON'T make anything up.
     ---
     Context: {context}
     Question: {question}
