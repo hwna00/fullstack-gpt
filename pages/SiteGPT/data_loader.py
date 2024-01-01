@@ -27,26 +27,26 @@ def parse_page(soup):
 
 def find_history(query):
     histories = memory.load_memory_variables({})["chat_history"]
-    temp = []
-    for idx in range(len(histories) // 2):
-        temp.append(
-            {
-                "input": histories[idx * 2].content,
-                "output": histories[idx * 2 + 1].content,
-            }
-        )
+    temp = [
+        {
+            "input": histories[idx * 2].content,
+            "output": histories[idx * 2 + 1].content,
+        }
+        for idx in range(len(histories) // 2)
+    ]
 
     docs = [
         Document(page_content=f"input:{item['input']}\noutput:{item['output']}")
         for item in temp
     ]
-    try:
-        vector_store = FAISS.from_documents(docs, OpenAIEmbeddings())
-        found_docs = vector_store.similarity_search(query)
-        candidate = found_docs[0].page_content.split("\n")[1]
-        return candidate.replace("output:", "")
-    except IndexError:
+    vector_store = FAISS.from_documents(docs, OpenAIEmbeddings())
+    found_docs = vector_store.similarity_search(query)
+
+    if not found_docs:
         return None
+
+    candidate = found_docs[0].page_content.split("\n")[1]
+    return candidate.replace("output:", "")
 
 
 @st.cache_data(show_spinner="Loading website...")
