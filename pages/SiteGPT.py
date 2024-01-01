@@ -3,8 +3,8 @@ from langchain.schema.runnable import RunnablePassthrough, RunnableLambda
 
 
 from pages.SiteGPT.chat_handler import get_answers, choose_answer, memory
-from pages.SiteGPT.data_loader import load_website
-from pages.SiteGPT.utils import paint_history, send_message, save_message
+from pages.SiteGPT.data_loader import load_website, find_history
+from pages.SiteGPT.utils import paint_history, send_message
 
 
 st.set_page_config(page_title="Quiz GPT", page_icon="❓")
@@ -19,23 +19,6 @@ st.markdown(
 
 def load_memory(_):
     return memory.load_memory_variables({})["chat_history"]
-
-
-def find_history(query):
-    histories = load_memory("")
-    temp = []
-    for idx in range(len(histories) // 2):
-        temp.append(
-            {
-                "input": histories[idx * 2].content,
-                "output": histories[idx * 2 + 1].content,
-            }
-        )
-    print(temp)
-    for item in temp:
-        if item["input"] == query:
-            return item["output"]
-    return None
 
 
 with st.sidebar:

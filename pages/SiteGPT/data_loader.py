@@ -3,6 +3,9 @@ from langchain.document_loaders import SitemapLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores.faiss import FAISS
 from langchain.embeddings import OpenAIEmbeddings
+from langchain.schema import Document
+
+from .chat_handler import memory
 
 
 def parse_page(soup):
@@ -20,6 +23,30 @@ def parse_page(soup):
         .replace("\xa0", " ")
         .replace("CloseSearch Submit Blog", "")
     )
+
+
+def find_history(query):
+    histories = memory.load_memory_variables({})["chat_history"]
+    temp = []
+    for idx in range(len(histories) // 2):
+        temp.append(
+            {
+                "input": histories[idx * 2].content,
+                "output": histories[idx * 2 + 1].content,
+            }
+        )
+
+    docs = [
+        Document(page_content=f"input:{item['input']}\noutput:{item['output']}")
+        for item in temp
+    ]
+    try:
+        vector_store = FAISS.from_documents(docs, OpenAIEmbeddings())
+        found_docs = vector_store.similarity_search(query)
+        candidate = found_docs[0].page_content.split("\n")[1]
+        return candidate.replace("output:", "")
+    except IndexError:
+        return None
 
 
 @st.cache_data(show_spinner="Loading website...")
