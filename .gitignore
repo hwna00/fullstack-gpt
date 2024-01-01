@@ -5,3 +5,4 @@ files/
 .streamlit/
 falcon.bin
 .vscode/
+cache.db
