@@ -4,5 +4,6 @@ files/
 .cache/
 .streamlit/
 falcon.bin
-.vscode/
 cache.db
+__pycache__
+.vscode
