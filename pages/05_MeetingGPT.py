@@ -10,6 +10,10 @@ from langchain.prompts import ChatPromptTemplate
 from langchain.document_loaders import TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import StrOutputParser
+from langchain.vectorstores.faiss import FAISS
+from langchain.embeddings import OpenAIEmbeddings, CacheBackedEmbeddings
+from langchain.storage import LocalFileStore
+from langchain.schema.runnable import RunnablePassthrough, RunnableLambda
 
 llm = ChatOpenAI(
     temperature=0.1,
@@ -27,6 +31,31 @@ st.markdown(
 )
 
 has_transcript = os.path.exists("./.cache/conan.txt")
+
+
+splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+    chunk_size=800,
+    chunk_overlap=100,
+)
+
+
+@st.cache_data()
+def embed_file(file_path, file_name):
+    cache_dir = LocalFileStore(f"./.cache/embeddings/{file_name}")
+    splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+        chunk_size=800,
+        chunk_overlap=100,
+    )
+
+    loader = TextLoader(file_path)
+    docs = loader.load_and_split(text_splitter=splitter)
+    embeddings = OpenAIEmbeddings()
+
+    cache_embeddings = CacheBackedEmbeddings.from_bytes_store(embeddings, cache_dir)
+    vectorstore = FAISS.from_documents(docs, cache_embeddings)
+    retriever = vectorstore.as_retriever()
+
+    return retriever
 
 
 @st.cache_data()
@@ -68,6 +97,10 @@ def transcribe_chunks(chunk_folder, destination):
             text_file.write(transcript["text"])
 
 
+def format_docs(docs):
+    return "\n\n".join(document.page_content for document in docs)
+
+
 with st.sidebar:
     video = st.file_uploader("Video", type=["mp4", "avi", "mkv", "mov"])
 
@@ -101,18 +134,14 @@ if video:
 
         if start:
             loader = TextLoader(transcript_path)
-            splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-                chunk_size=800,
-                chunk_overlap=100,
-            )
             docs = loader.load_and_split(text_splitter=splitter)
 
             first_summary_prompt = ChatPromptTemplate.from_template(
                 """
-                Write a concise summary of the following:
-                "{text}"
-                CONCISE SUMMARY:
-                """
+                    Write a concise summary of the following:
+                    "{text}"
+                    CONCISE SUMMARY:
+                    """
             )
 
             first_summary_chain = first_summary_prompt | llm | StrOutputParser()
@@ -120,15 +149,15 @@ if video:
 
             refine_prompt = ChatPromptTemplate.from_template(
                 """
-                Your job is to provide a final summary.
-                We have provided an existing summary up to a certain point: {existing_summary}
-                We have the opportunity to refine the existing summary (only if needed) with some more context below.
-                ----------
-                {context}
-                ----------
-                Given the new context, refine the original summary.
-                If the context isn't useful, RETURN the original summary.
-                """
+                    Your job is to provide a final summary.
+                    We have provided an existing summary up to a certain point: {existing_summary}
+                    We have the opportunity to refine the existing summary (only if needed) with some more context below.
+                    ----------
+                    {context}
+                    ----------
+                    Given the new context, refine the original summary.
+                    If the context isn't useful, RETURN the original summary.
+                    """
             )
 
             refine_chain = refine_prompt | llm | StrOutputParser()
@@ -145,4 +174,34 @@ if video:
             summary
 
     with qa_tab:
-        pass
+        input = st.text_input("Your question here")
+        start = st.button("Generate Answer")
+        if input and start:
+            prompt = ChatPromptTemplate.from_messages(
+                [
+                    (
+                        "system",
+                        """
+                        Answer the question using ONLY the following context.
+                        If you don't know the answer just say you don't know. DON'T make anything up.
+                        ---
+                        Context: {context}
+                        """,
+                    ),
+                    ("human", "{question}"),
+                ]
+            )
+            retriever = embed_file(transcript_path, video.name)
+
+            qa_chain = (
+                {
+                    "context": retriever | RunnableLambda(format_docs),
+                    "question": RunnablePassthrough(),
+                }
+                | prompt
+                | llm
+                | StrOutputParser()
+            )
+
+            answer = qa_chain.invoke(input)
+            answer
