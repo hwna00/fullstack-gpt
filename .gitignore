@@ -7,3 +7,4 @@ falcon.bin
 cache.db
 __pycache__
 .vscode
+movies.sqlite
